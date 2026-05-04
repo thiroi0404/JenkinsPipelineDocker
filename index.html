@@ -1,11 +1,349 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>Jenkins Docker Test</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jenkins × Docker × EC2</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(0, 255, 255, 0.25), transparent 30%),
+        radial-gradient(circle at bottom right, rgba(255, 0, 128, 0.25), transparent 35%),
+        linear-gradient(135deg, #050816, #0f172a 45%, #111827);
+      color: #ffffff;
+      overflow-x: hidden;
+    }
+
+    .grid-bg {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+      background-size: 40px 40px;
+      mask-image: linear-gradient(to bottom, black, transparent);
+      pointer-events: none;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      width: min(1100px, 92%);
+      margin: 0 auto;
+      padding: 70px 0;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 18px;
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(14px);
+      color: #a5f3fc;
+      font-size: 14px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      box-shadow: 0 0 30px rgba(34, 211, 238, 0.18);
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 14px #22c55e;
+      animation: pulse 1.4s infinite;
+    }
+
+    h1 {
+      margin-top: 36px;
+      font-size: clamp(44px, 8vw, 92px);
+      line-height: 1.02;
+      letter-spacing: -0.06em;
+      max-width: 900px;
+    }
+
+    .gradient-text {
+      background: linear-gradient(90deg, #22d3ee, #a78bfa, #fb7185);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .lead {
+      margin-top: 28px;
+      max-width: 760px;
+      color: #cbd5e1;
+      font-size: clamp(17px, 2vw, 22px);
+      line-height: 1.8;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 38px;
+    }
+
+    .btn {
+      text-decoration: none;
+      color: #ffffff;
+      padding: 15px 24px;
+      border-radius: 14px;
+      font-weight: 700;
+      transition: 0.25s ease;
+    }
+
+    .btn-primary {
+      background: linear-gradient(90deg, #06b6d4, #8b5cf6);
+      box-shadow: 0 16px 40px rgba(139, 92, 246, 0.35);
+    }
+
+    .btn-secondary {
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(14px);
+    }
+
+    .btn:hover {
+      transform: translateY(-3px);
+      filter: brightness(1.1);
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      margin-top: 70px;
+    }
+
+    .card {
+      padding: 26px;
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 24px;
+      background: rgba(15, 23, 42, 0.62);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.28);
+      transition: 0.25s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, transparent, rgba(255,255,255,0.08), transparent);
+      transform: translateX(-100%);
+      transition: 0.6s ease;
+    }
+
+    .card:hover::before {
+      transform: translateX(100%);
+    }
+
+    .card:hover {
+      transform: translateY(-6px);
+      border-color: rgba(34, 211, 238, 0.45);
+    }
+
+    .icon {
+      font-size: 34px;
+      margin-bottom: 18px;
+    }
+
+    .card h2 {
+      font-size: 22px;
+      margin-bottom: 12px;
+    }
+
+    .card p {
+      color: #cbd5e1;
+      line-height: 1.7;
+      font-size: 15px;
+    }
+
+    .terminal {
+      margin-top: 60px;
+      border-radius: 24px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(2, 6, 23, 0.82);
+      box-shadow: 0 25px 80px rgba(0,0,0,0.45);
+    }
+
+    .terminal-header {
+      display: flex;
+      gap: 8px;
+      padding: 16px 20px;
+      background: rgba(255,255,255,0.06);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .circle {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .red { background: #fb7185; }
+    .yellow { background: #facc15; }
+    .green { background: #22c55e; }
+
+    .terminal-body {
+      padding: 28px;
+      font-family: Consolas, Monaco, monospace;
+      color: #a7f3d0;
+      font-size: 15px;
+      line-height: 1.9;
+    }
+
+    .comment {
+      color: #64748b;
+    }
+
+    .footer {
+      margin-top: 50px;
+      color: #94a3b8;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .orb {
+      position: fixed;
+      width: 360px;
+      height: 360px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(34,211,238,0.22), rgba(168,85,247,0.22));
+      filter: blur(30px);
+      right: -120px;
+      top: 120px;
+      animation: float 6s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.45;
+        transform: scale(1.35);
+      }
+    }
+
+    @keyframes float {
+      0%, 100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(30px);
+      }
+    }
+
+    @media (max-width: 800px) {
+      .cards {
+        grid-template-columns: 1fr;
+      }
+
+      .container {
+        padding: 44px 0;
+      }
+
+      .terminal-body {
+        font-size: 13px;
+      }
+    }
+  </style>
 </head>
 <body>
-  <h1>うんちぷりプリ</h1>
-  <p>This nginx container was built by Jenkins Pipeline.</p>
+  <div class="grid-bg"></div>
+  <div class="orb"></div>
+
+  <main class="container">
+    <div class="badge">
+      <span class="dot"></span>
+      Deployed Successfully
+    </div>
+
+    <h1>
+      Jenkinsでビルドし、<br />
+      Dockerで起動する<br />
+      <span class="gradient-text">EC2 Web App</span>
+    </h1>
+
+    <p class="lead">
+      このページは Amazon Linux 2023 上の Jenkins Pipeline によってビルドされ、
+      Docker コンテナとしてデプロイされています。
+      CI/CD の第一歩、かなりいい感じに動いています。
+    </p>
+
+    <div class="actions">
+      <a class="btn btn-primary" href="#">Pipeline Running</a>
+      <a class="btn btn-secondary" href="#">Powered by Nginx</a>
+    </div>
+
+    <section class="cards">
+      <div class="card">
+        <div class="icon">🚀</div>
+        <h2>Jenkins</h2>
+        <p>
+          Jenkins Pipeline によって Docker イメージを自動ビルド。
+          手動作業を減らし、デプロイを安定化します。
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="icon">🐳</div>
+        <h2>Docker</h2>
+        <p>
+          アプリケーションをコンテナ化して実行。
+          環境差分を減らし、どこでも同じように動かせます。
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="icon">☁️</div>
+        <h2>Amazon EC2</h2>
+        <p>
+          Amazon Linux 2023 上で nginx コンテナを公開。
+          クラウド上に自分のWebサービスをデプロイしています。
+        </p>
+      </div>
+    </section>
+
+    <section class="terminal">
+      <div class="terminal-header">
+        <span class="circle red"></span>
+        <span class="circle yellow"></span>
+        <span class="circle green"></span>
+      </div>
+      <div class="terminal-body">
+        <div><span class="comment"># Jenkins Pipeline</span></div>
+        <div>$ docker build -t my-nginx-app .</div>
+        <div>$ docker stop my-nginx || true</div>
+        <div>$ docker rm my-nginx || true</div>
+        <div>$ docker run -d --name my-nginx -p 80:80 my-nginx-app</div>
+        <br />
+        <div>✅ Container is running successfully.</div>
+      </div>
+    </section>
+
+    <p class="footer">
+      Built with Jenkins × Docker × Nginx on Amazon Linux 2023
+    </p>
+  </main>
 </body>
 </html>
